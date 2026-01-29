@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<title>Sanskrit Dhatu Spinner Quiz</title>
+
+<style>
+body{
+ text-align:center;
+ font-family:sans-serif;
+ background:#eef2ff;
+}
+h1{color:#1a237e;}
+
+#wheelBox{
+ width:320px;height:320px;
+ margin:20px auto;
+ position:relative;
+}
+#wheel{
+ width:100%;height:100%;
+ border-radius:50%;
+ background:conic-gradient(
+ #ffcc80 0deg 60deg,
+ #ce93d8 60deg 120deg,
+ #90caf9 120deg 180deg,
+ #a5d6a7 180deg 240deg,
+ #fff59d 240deg 300deg,
+ #ef9a9a 300deg 360deg);
+ border:8px solid #333;
+ cursor:pointer;
+ transition:transform 2.5s ease-out;
+}
+#pointer{
+ position:absolute;
+ top:-15px;left:50%;
+ transform:translateX(-50%);
+ border-left:15px solid transparent;
+ border-right:15px solid transparent;
+ border-bottom:30px solid red;
+}
+
+.option{
+ background:#fff;
+ padding:10px;
+ margin:8px auto;
+ width:280px;
+ border-radius:6px;
+ border:2px solid #ccc;
+ cursor:pointer;
+ transition:0.3s;
+}
+.option.correct{background:#c8e6c9;border-color:green;}
+.option.wrong{background:#ffcdd2;border-color:red;}
+.option.disabled{opacity:0.6;pointer-events:none;}
+.option.fifty{filter:blur(3px);pointer-events:none;}
+
+.correctText{color:green;font-weight:bold;}
+.wrongText{color:red;font-weight:bold;}
+
+#timer{font-weight:bold;color:#c62828;margin:10px;}
+#lifelines{margin:10px;}
+.lifelineBtn{padding:8px 12px;margin:5px;font-size:14px;cursor:pointer;}
+</style>
+</head>
+
+<body>
+
+<h1>📚 संस्कृत धातु-रूप Spinner Quiz</h1>
+
+<div id="wheelBox">
+ <div id="pointer"></div>
+ <div id="wheel"></div>
+</div>
+
+<div id="timer">⏳ Time: 60s</div>
+<div id="question"></div>
+<div id="options"></div>
+<div id="result"></div>
+
+<div id="lifelines">
+ <button class="lifelineBtn" onclick="useHelp()">☎ Helpline</button>
+ <button class="lifelineBtn" onclick="useFifty()">50-50</button>
+ <button class="lifelineBtn" onclick="showAnswer()">Show Answer</button>
+</div>
+
+<script>
+const wheel=document.getElementById("wheel");
+const questionDiv=document.getElementById("question");
+const optionsDiv=document.getElementById("options");
+const resultDiv=document.getElementById("result");
+const timerDiv=document.getElementById("timer");
+
+let rotation=0,answered=false,correctAnswer="";
+let timer=null,timeLeft=60;
+
+/* DHATU DATA */
+const dhatus = {
+ "भू":{
+  "लट्":{"प्रथम":["भवति","भवतः","भवन्ति"],"मध्यम":["भवसि","भवथः","भवथ"],"उत्तम":["भवामि","भवावः","भवामः"]},
+  "लङ्":{"प्रथम":["अभवत्","अभवताम्","अभवन्"],"मध्यम":["अभवः","अभवतम्","अभवत"],"उत्तम":["अभवम्","अभवाव","अभवाम"]},
+  "लृट्":{"प्रथम":["भविष्यति","भविष्यतः","भविष्यन्ति"],"मध्यम":["भविष्यसि","भविष्यथः","भविष्यथ"],"उत्तम":["भविष्यामि","भविष्यावः","भविष्यामः"]},
+  "लोट्":{"प्रथम":["भवतु","भवताम्","भवन्तु"],"मध्यम":["भव","भवतम्","भवत"],"उत्तम":["भवानी","भवाव","भवाम"]},
+  "विधिलिङ्":{"प्रथम":["भवेत्","भवेताम्","भवेयुः"],"मध्यम":["भवेः","भवेतम्","भवेत"],"उत्तम":["भवेयम्","भवेव","भवेम"]}
+ },
+ "पठ्":{
+  "लट्":{"प्रथम":["पठति","पठतः","पठन्ति"],"मध्यम":["पठसि","पठथः","पठथ"],"उत्तम":["पठामि","पठावः","पठामः"]},
+  "लङ्":{"प्रथम":["अपठत्","अपठताम्","अपठन्"],"मध्यम":["अपठः","अपठतम्","अपठत"],"उत्तम":["अपठम्","अपठाव","अपठाम"]},
+  "लृट्":{"प्रथम":["पठिष्यति","पठिष्यतः","पठिष्यन्ति"],"मध्यम":["पठिष्यसि","पठिष्यथः","पठिष्यथ"],"उत्तम":["पठिष्यामि","पठिष्यावः","पठिष्यामः"]},
+  "लोट्":{"प्रथम":["पठतु","पठताम्","पठन्तु"],"मध्यम":["पठ","पठतम्","पठत"],"उत्तम":["पठानि","पठाव","पठाम"]},
+  "विधिलिङ्":{"प्रथम":["पठेत्","पठेताम्","पठेयुः"],"मध्यम":["पठेः","पठेतम्","पठेत"],"उत्तम":["पठेयम्","पठेव","पठेम"]}
+ },
+ "गम्":{
+  "लट्":{"प्रथम":["गच्छति","गच्छतः","गच्छन्ति"],"मध्यम":["गच्छसि","गच्छथः","गच्छथ"],"उत्तम":["गच्छामि","गच्छावः","गच्छामः"]},
+  "लङ्":{"प्रथम":["अगच्छत्","अगच्छताम्","अगच्छन्"],"मध्यम":["अगच्छः","अगच्छतम्","अगच्छत"],"उत्तम":["अगच्छम्","अगच्छाव","अगच्छाम"]},
+  "लृट्":{"प्रथम":["गमिष्यति","गमिष्यतः","गमिष्यन्ति"],"मध्यम":["गमिष्यसि","गमिष्यथः","गमिष्यथ"],"उत्तम":["गमिष्यामि","गमिष्यावः","गमिष्यामः"]},
+  "लोट्":{"प्रथम":["गच्छतु","गच्छताम्","गच्छन्तु"],"मध्यम":["गच्छ","गच्छतम्","गच्छत"],"उत्तम":["गच्छानि","गच्छाव","गच्छाम"]},
+  "विधिलिङ्":{"प्रथम":["गच्छेत्","गच्छेताम्","गच्छेयुः"],"मध्यम":["गच्छेः","गच्छेतम्","गच्छेत"],"उत्तम":["गच्छेयम्","गच्छेव","गच्छेम"]}
+ }
+};
+
+const vachanIndex=["एकवचन","द्विवचन","बहुवचन"];
+
+/* SPIN */
+wheel.onclick = ()=>{
+ rotation += Math.random()*360 + 720;
+ wheel.style.transform=`rotate(${rotation}deg)`;
+ setTimeout(makeQuestion,2500);
+};
+
+/* QUESTION FIXED PATTERN */
+function makeQuestion(){
+ answered=false;
+ optionsDiv.innerHTML="";
+ resultDiv.innerHTML="";
+
+ let dhatu=rand(Object.keys(dhatus));
+ let lakar=rand(Object.keys(dhatus[dhatu]));
+ let purush=rand(Object.keys(dhatus[dhatu][lakar]));
+ let vIndex=Math.floor(Math.random()*3);
+
+ correctAnswer=dhatus[dhatu][lakar][purush][vIndex];
+
+ questionDiv.innerHTML=
+ `❓ धातु "<b>${dhatu}</b>", <b>${lakar}</b> लकार, <b>${purush}</b> पुरुष, <b>${vachanIndex[vIndex]}</b> – सही रूप चुनिए`;
+
+ let options=new Set([correctAnswer]);
+ while(options.size<4){
+  let p=rand(Object.keys(dhatus[dhatu][lakar]));
+  let i=Math.floor(Math.random()*3);
+  options.add(dhatus[dhatu][lakar][p][i]);
+ }
+ [...options].sort(()=>Math.random()-0.5).forEach(o=>{
+  let d=document.createElement("div");
+  d.className="option";
+  d.innerText=o;
+  d.onclick=()=>checkColorOnly(d,o); // only color on click
+  optionsDiv.appendChild(d);
+ });
+
+ startTimer();
+}
+
+/* CLICK OPTION - sirf color */
+function checkColorOnly(div,val){
+ if(answered) return;
+ answered=true;
+ clearInterval(timer);
+ document.querySelectorAll(".option").forEach(o=>o.classList.add("disabled"));
+ if(val===correctAnswer){
+  div.classList.add("correct");
+ }else{
+  div.classList.add("wrong");
+ }
+}
+
+/* TIMER */
+function startTimer(){
+ clearInterval(timer);
+ timeLeft=60;
+ timerDiv.innerText="⏳ Time: 60s";
+ timer=setInterval(()=>{
+  timeLeft--;
+  timerDiv.innerText="⏳ Time: "+timeLeft+"s";
+  if(timeLeft<=0){
+   clearInterval(timer);
+   document.querySelectorAll(".option").forEach(o=>o.classList.add("disabled"));
+  }
+ },1000);
+}
+
+/* HELPLINE */
+function useHelp(){
+ if(answered) return;
+ alert("📞 Helpline Hint: शब्द के अंत पर ध्यान दें।");
+}
+
+/* 50-50 */
+function useFifty(){
+ if(answered) return;
+ let removed=0;
+ document.querySelectorAll(".option").forEach(o=>{
+  if(o.innerText!==correctAnswer && removed<2){
+   o.classList.add("fifty");
+   removed++;
+  }
+ });
+}
+
+/* SHOW ANSWER */
+function showAnswer(){
+ document.querySelectorAll(".option").forEach(o=>{
+  if(o.innerText===correctAnswer) o.classList.add("correct");
+  else if(!o.classList.contains("fifty")) o.classList.add("wrong");
+ });
+ resultDiv.innerHTML="✔ सही उत्तर: "+correctAnswer;
+ resultDiv.className="correctText";
+ answered=true;
+ clearInterval(timer);
+}
+
+/* RANDOM HELPER */
+function rand(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+
+</script>
+</body>
+</html>
